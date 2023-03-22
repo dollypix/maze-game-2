@@ -1,0 +1,273 @@
+import pygame
+import random
+
+# Define constants for the game
+SCREEN_WIDTH = 947
+SCREEN_HEIGHT = 738
+CELL_SIZE = 35
+MAZE_WIDTH = SCREEN_WIDTH // CELL_SIZE
+MAZE_HEIGHT = SCREEN_HEIGHT // CELL_SIZE
+WALL_THICKNESS = 3
+BG_COLOR = (255, 255, 255)
+WALL_COLOUR = (0, 0, 0)
+
+# Define a class for the cell in the maze
+class Cell:
+    def __init__(self, row, col):
+        self.row = row
+        self.col = col
+        self.visited = False
+        self.walls = {"top": True, "right": True, "bottom": True, "left": True}
+        self.is_end = False
+        self.wallRects = []
+        
+    def remove_wall(self, other):
+        if self.row == other.row and self.col == other.col + 1:
+            self.walls["left"] = False
+            other.walls["right"] = False
+        elif self.row == other.row and self.col == other.col - 1:
+            self.walls["right"] = False
+            other.walls["left"] = False
+        elif self.row == other.row + 1 and self.col == other.col:
+            self.walls["top"] = False
+            other.walls["bottom"] = False
+        elif self.row == other.row - 1 and self.col == other.col:
+            self.walls["bottom"] = False
+            other.walls["top"] = False
+
+    def draw(self, surface):
+        x = self.col * CELL_SIZE
+        y = self.row * CELL_SIZE
+
+        if self.walls["top"]:
+            wall_rect = pygame.Rect(x, y, CELL_SIZE, WALL_THICKNESS)
+            pygame.draw.rect(surface, WALL_COLOUR, wall_rect)
+            self.wallRects.append(wall_rect)
+        if self.walls["right"]:
+            wall_rect = pygame.Rect(x + CELL_SIZE - WALL_THICKNESS, y, WALL_THICKNESS, CELL_SIZE)
+            pygame.draw.rect(surface, WALL_COLOUR, wall_rect)
+            self.wallRects.append(wall_rect)
+        if self.walls["bottom"]:
+            wall_rect = pygame.Rect(x, y + CELL_SIZE - WALL_THICKNESS, CELL_SIZE, WALL_THICKNESS)
+            pygame.draw.rect(surface, WALL_COLOUR, wall_rect)
+            self.wallRects.append(wall_rect)
+        if self.walls["left"]:
+            wall_rect = pygame.Rect(x, y, WALL_THICKNESS, CELL_SIZE)
+            pygame.draw.rect(surface, WALL_COLOUR, wall_rect)
+            self.wallRects.append(wall_rect)
+
+        if self.is_end:
+            pygame.draw.rect(surface, (255, 192, 203), pygame.Rect(x + 5, y + 5, CELL_SIZE - 10, CELL_SIZE - 10))  
+
+# Define a class for the maze
+class Maze:
+    def __init__(self):
+        self.grid = []
+        self.stack = []
+        for row in range(MAZE_HEIGHT):
+            self.grid.append([])
+            for col in range(MAZE_WIDTH):
+                self.grid[row].append(Cell(row, col))
+        self.current_cell = self.grid[0][0]
+        self.current_cell.visited = True
+        self.wallRects = []
+        self.grid[-1][-1].is_end = True
+
+    def draw(self, surface):
+        surface.fill(BG_COLOR)
+        self.wallRects = []
+        for row in self.grid:
+            for cell in row:
+                cell.draw(surface)
+                self.wallRects.extend(cell.wallRects)
+        pygame.display.update()
+
+    def get_walls(self):
+        walls = []
+        for row in self.grid:
+            for cell in row:
+                for wall in cell.walls:
+                    if cell.walls[wall]:
+                        walls.append((cell.row, cell.col, wall))
+            return walls
+
+    def get_neighbors(self, cell):
+        neighbors = []
+        if cell.row > 0:
+            top = self.grid[cell.row - 1][cell.col]
+            if not top.visited:
+                neighbors.append(top)
+        if cell.col < MAZE_WIDTH - 1:
+            right = self.grid[cell.row][cell.col + 1]
+            if not right.visited:
+                neighbors.append(right)
+        if cell.row < MAZE_HEIGHT - 1:
+            bottom = self.grid[cell.row + 1][cell.col]
+            if not bottom.visited:
+                neighbors.append(bottom)
+        if cell.col > 0:
+            left = self.grid[cell.row][cell.col - 1]
+            if not left.visited:
+                neighbors.append(left)
+        return neighbors
+
+    def remove_random_wall(self, cell):
+        unvisited_neighbors = []
+        if cell.row > 0 and not self.grid[cell.row - 1][cell.col].visited:
+            unvisited_neighbors.append(self.grid[cell.row - 1][cell.col])
+        if cell.col < MAZE_WIDTH - 1 and not self.grid[cell.row][cell.col + 1].visited:
+            unvisited_neighbors.append(self.grid[cell.row][cell.col + 1])
+        if cell.row < MAZE_HEIGHT - 1 and not self.grid[cell.row + 1][cell.col].visited:
+            unvisited_neighbors.append(self.grid[cell.row + 1][cell.col])
+        if cell.col > 0 and not self.grid[cell.row][cell.col - 1].visited:
+            unvisited_neighbors.append(self.grid[cell.row][cell.col - 1])
+        if unvisited_neighbors:
+            neighbor = random.choice(unvisited_neighbors)
+            cell.remove_wall(neighbor)
+            self.stack.append(cell)
+            self.current_cell = neighbor
+            neighbor.visited = True
+        elif self.stack:
+            self.current_cell = self.stack.pop()
+
+    def generate(self):
+        while any(not cell.visited for row in self.grid for cell in row):
+            self.remove_random_wall(self.current_cell)
+
+    def reset(self):
+        self.grid = []
+        self.stack = []
+        for row in range(MAZE_HEIGHT):
+            self.grid.append([])
+            for col in range(MAZE_WIDTH):
+                self.grid[row].append(Cell(row, col))
+        self.current_cell = self.grid[0][0]
+        self.current_cell.visited = True
+
+    def solve(self):
+        pass
+
+# Define the game loop
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Maze Game")
+
+    maze = Maze()
+    maze.generate()
+
+    monkeyPlayer = pygame.image.load("monkeysprite2.png")
+
+    monkeyRect = monkeyPlayer.get_rect()
+    monkeyRect.x = 0
+    monkeyRect.y = 0
+
+    goal = pygame.image.load("banana.png")
+    goalWidth = 26
+    goalHeight = 24
+    # Calculate the position of the bottom right corner of the screen
+    bx = SCREEN_WIDTH - 6
+    by = SCREEN_HEIGHT - 9
+    goalRect = goal.get_rect(bottomright=(bx, by), width=goalWidth, height=goalHeight)
+
+    clock = pygame.time.Clock()
+
+    monkeyX = 0
+    monkeyY = 0
+
+    victory = False
+    
+    #setting up the player's speed
+    speed = 150 # pixels per second
+
+    FPS = 20
+
+    #mapping keys to movement directions using a dictionary
+    keyDirections = {
+        pygame.K_UP: (0, -1),
+        pygame.K_DOWN: (0, 1),
+        pygame.K_LEFT: (-1, 0),
+        pygame.K_RIGHT: (1, 0)
+    }
+
+    #defining a set - keeps track of what keys are currently being pressed
+    keysCurrentlyPressed = set()
+
+    buffer = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    
+    while True:
+        dt = clock.tick_busy_loop(FPS) / 1000  # Get time elapsed between frames
+
+        buffer.fill((255, 255, 255))
+
+        maze.draw(buffer)
+        
+        collision = False
+
+        for wallRect in maze.wallRects:
+            if monkeyRect.colliderect(wallRect):
+                collision = True
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                pygame.quit()
+                quit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                        # Reset maze and monkey position
+                        maze.reset()
+                        maze.generate()
+                        monkeyX = 0
+                        monkeyY = 0
+                        monkeyRect.x = 0
+                        monkeyRect.y = 0
+                        victory = False
+                #now we need to add our key thats in current use to the set
+                if collision == False:
+                    keysCurrentlyPressed.add(event.key)
+            elif event.type == pygame.KEYUP:
+                #keys no longer being pressed, remove from set
+                keysCurrentlyPressed.discard(event.key)
+
+        #controlling movement
+        moveX = 0
+        moveY = 0
+        for key in keysCurrentlyPressed:
+            direction = keyDirections.get(key)
+            if direction:
+                moveX += direction[0]
+                moveY += direction[1]
+        monkeyX += moveX * speed * dt
+        monkeyY += moveY * speed * dt
+
+        monkeyRect.x = monkeyX
+        monkeyRect.y = monkeyY
+
+
+        #draw the player at its new pos
+        buffer.blit(monkeyPlayer, (monkeyX, monkeyY))
+        buffer.blit(goal, goalRect)
+
+        if monkeyRect.colliderect(goalRect):
+            victory = True
+
+        if victory:
+            buffer.fill((137, 207, 240))
+            font = pygame.font.SysFont('Arial', 36)
+            text = font.render('Well done! Now press R to try a different maze, or exit the game.', True, (255, 255, 255))
+            x = (SCREEN_WIDTH - text.get_width()) // 2
+            y = (SCREEN_HEIGHT - text.get_height()) // 2
+            buffer.blit(text, (x, y))
+            pygame.display.flip()
+            
+        screen.blit(buffer, (0, 0))
+
+        pygame.display.flip()
+
+        pygame.time.wait(int(1000/FPS)) # Wait for fixed time between frames
+
+
+if __name__ == "__main__":
+    main()
+
+
